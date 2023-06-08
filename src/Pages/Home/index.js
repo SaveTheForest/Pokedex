@@ -1,13 +1,27 @@
-import React, { useEffect, useState } from "react";
-
+import React from "react";
+import { useQuery } from "react-query";
+import { ActivityIndicator, FlatList, Image, StatusBar, View } from "react-native";
 import * as Style from "./styled";
-
 import Card from "../../components/Card";
 import PokeApi from "../../services/api";
-import { FlatList, Image, StatusBar } from "react-native";
 
 export default function Home({ navigation }) {
-  const [pokemonsInfos, setPokemonsInfos] = useState([]);
+  const { data: pokemonsInfos, isLoading } = useQuery("pokemons", async () => {
+    const response = await PokeApi.get("/pokemon?offset=0&limit=100");
+    const { results } = response.data;
+
+    const getInfos = await Promise.all(
+      results.map(async (item) => {
+        const { id, types, name, weight, height, stats, abilities } = await Infos(
+          item.url
+        );
+
+        return { id, types, name, weight, height, stats, abilities };
+      })
+    );
+
+    return getInfos;
+  });
 
   const handleDetails = (item) => {
     navigation.navigate("Details", {
@@ -21,25 +35,6 @@ export default function Home({ navigation }) {
     });
   };
 
-  useEffect(() => {
-    async function pokeLoad() {
-      const response = await PokeApi.get("/pokemon?offset=0&limit=299");
-      const { results } = response.data;
-
-      const getInfos = await Promise.all(
-        results.map(async (item) => {
-          const { id, types, name, weight, height, stats, abilities } =
-            await Infos(item.url);
-
-          return { id, types, name, weight, height, stats, abilities };
-        })
-      );
-
-      setPokemonsInfos(getInfos);
-    }
-
-    pokeLoad();
-  }, []);
   async function Infos(url) {
     const response = await PokeApi.get(url);
     const { id, types, name, weight, height, stats, abilities } = response.data;
@@ -54,6 +49,7 @@ export default function Home({ navigation }) {
       abilities,
     };
   }
+
   return (
     <Style.Container>
       <StatusBar />
@@ -65,14 +61,19 @@ export default function Home({ navigation }) {
         <Style.LogoName>Pokédex</Style.LogoName>
       </Style.Header>
 
-      <FlatList
-        data={pokemonsInfos}
-        numColumns={2}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item: pokemonsInfos }) => (
-          <Card data={pokemonsInfos} detail={handleDetails} />
-        )}
-      />
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator size={54} color={"#323232"} /></View>
+      ) : (
+        <FlatList
+          data={pokemonsInfos}
+          numColumns={2}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <Card data={item} detail={handleDetails} />
+          )}
+          keyExtractor={(item) => item.id.toString()}
+        />
+      )}
     </Style.Container>
   );
 }
